@@ -71,8 +71,11 @@ export default function MapSection({ onSelectPlace }) {
           roam: true,
           center: CHINA_CENTER,
           zoom: CHINA_ZOOM,
-          layoutCenter: ['50%', '50%'],
-          layoutSize: '175%',
+          // 占满整个容器矩形，缩到最小时整张世界地图完整铺满
+          left: 0, right: 0, top: 0, bottom: 0,
+          // 裁掉南极洲等无用纬度，减少上下空白
+          boundingCoords: [[-180, 83], [180, -56]],
+          aspectScale: 1,
           scaleLimit: { min: MIN_ZOOM, max: MAX_ZOOM },
           label: { show: false },
           itemStyle: {

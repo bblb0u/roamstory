@@ -32,6 +32,9 @@ export default function Album({ focus }) {
       index: (v.index + dir + v.item.photos.length) % v.item.photos.length,
     }))
   }, [])
+  const jump = useCallback((index) => {
+    setViewer((v) => v && ({ ...v, index }))
+  }, [])
 
   // 键盘操作：← → 切换，ESC 关闭
   useEffect(() => {
@@ -101,42 +104,73 @@ export default function Album({ focus }) {
       {/* Lightbox */}
       {viewer && (
         <div
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-[fadeIn_.2s_ease-out]"
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex flex-col animate-[fadeIn_.2s_ease-out]"
           onClick={close}
         >
-          <button
-            onClick={close}
-            className="absolute top-4 right-5 w-10 h-10 flex items-center justify-center text-white/60 hover:text-white text-3xl leading-none transition-colors"
-            aria-label="关闭"
-          >×</button>
-
-          <img
-            key={viewer.index}
-            src={viewer.item.photos[viewer.index]}
-            alt={viewer.item.place}
-            className="max-h-[86vh] max-w-[92vw] object-contain rounded shadow-2xl animate-[fadeIn_.25s_ease-out]"
+          {/* 顶栏 */}
+          <div
+            className="flex items-center justify-between px-5 md:px-8 h-14 shrink-0 text-white/90"
             onClick={(e) => e.stopPropagation()}
-          />
-
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/70 text-sm flex items-center gap-2">
-            <span>{viewer.item.place}</span>
-            <span className="text-white/30">·</span>
-            <span className="tabular-nums">{viewer.index + 1} / {viewer.item.photos.length}</span>
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="text-base font-medium">{viewer.item.place}</span>
+              <span className="text-white/40 text-sm tabular-nums">
+                {viewer.index + 1} / {viewer.item.photos.length}
+              </span>
+            </div>
+            <button
+              onClick={close}
+              className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 text-2xl leading-none transition-colors"
+              aria-label="关闭 (Esc)"
+            >×</button>
           </div>
 
+          {/* 主图区 */}
+          <div className="flex-1 min-h-0 relative flex items-center justify-center px-4">
+            <img
+              key={viewer.index}
+              src={viewer.item.photos[viewer.index]}
+              alt={viewer.item.place}
+              className="max-h-full max-w-full object-contain rounded-lg shadow-2xl animate-[fadeIn_.25s_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            {viewer.item.photos.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); step(-1) }}
+                  className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl backdrop-blur transition-all"
+                  aria-label="上一张 (←)"
+                >‹</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); step(1) }}
+                  className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl backdrop-blur transition-all"
+                  aria-label="下一张 (→)"
+                >›</button>
+              </>
+            )}
+          </div>
+
+          {/* 底部缩略图条 */}
           {viewer.item.photos.length > 1 && (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); step(-1) }}
-                className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white text-2xl transition-all"
-                aria-label="上一张"
-              >‹</button>
-              <button
-                onClick={(e) => { e.stopPropagation(); step(1) }}
-                className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white text-2xl transition-all"
-                aria-label="下一张"
-              >›</button>
-            </>
+            <div
+              className="shrink-0 flex justify-center gap-2 px-4 py-4 overflow-x-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {viewer.item.photos.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => jump(i)}
+                  className={`shrink-0 w-16 h-12 rounded-md overflow-hidden ring-2 transition-all ${
+                    i === viewer.index
+                      ? 'ring-white opacity-100'
+                      : 'ring-transparent opacity-50 hover:opacity-90'
+                  }`}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
