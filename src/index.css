@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1f2328;
+  --muted: #687076;
+  --blue: #2761ad;
+  --red: #d84d4d;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "LXGW WenKai Screen", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: #fff;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
