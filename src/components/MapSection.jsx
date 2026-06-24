@@ -50,6 +50,19 @@ export default function MapSection({ onSelectPlace }) {
       const withPhoto = places.filter((p) => PHOTO_PLACES.has(p.name)).map(toPoint)
       const withoutPhoto = places.filter((p) => !PHOTO_PLACES.has(p.name)).map(toPoint)
 
+      // 按容器宽高比裁剪地图范围，让“整张图”比例≈屏幕，缩到最小时铺满、留白最小
+      // 经度固定全幅 360°，纬度跨度按容器宽高比推算，上下对称裁剪
+      const computeBounds = () => {
+        const w = elRef.current?.clientWidth || 1
+        const h = elRef.current?.clientHeight || 1
+        const lonSpan = 360
+        let latSpan = (lonSpan * h) / w
+        latSpan = Math.min(latSpan, 150)
+        const latHalf = latSpan / 2
+        const cLat = 18 // 中心纬度略偏北，让陆地更居中
+        return [[-180, Math.min(85, cLat + latHalf)], [180, Math.max(-85, cLat - latHalf)]]
+      }
+
       chart.setOption({
         backgroundColor: 'transparent',
         textStyle: { fontFamily: FONT },
@@ -71,11 +84,10 @@ export default function MapSection({ onSelectPlace }) {
           roam: true,
           center: CHINA_CENTER,
           zoom: CHINA_ZOOM,
-          // 占满整个容器矩形，缩到最小时整张世界地图完整铺满
+          // 占满整个容器矩形
           left: 0, right: 0, top: 0, bottom: 0,
-          // 裁掉南极洲等无用纬度，减少上下空白
-          boundingCoords: [[-180, 83], [180, -56]],
-          aspectScale: 1,
+          // 动态裁剪范围，使整张图比例贴合屏幕
+          boundingCoords: computeBounds(),
           scaleLimit: { min: MIN_ZOOM, max: MAX_ZOOM },
           label: { show: false },
           itemStyle: {
@@ -131,7 +143,11 @@ export default function MapSection({ onSelectPlace }) {
       })
       chart.on('mouseout', () => chart.getZr().setCursorStyle('default'))
 
-      const onResize = () => chart.resize()
+      // 窗口变化时：先 resize 画布，再按新宽高比重算地图范围，避免地图形变
+      const onResize = () => {
+        chart.resize()
+        chart.setOption({ geo: { boundingCoords: computeBounds() } })
+      }
       window.addEventListener('resize', onResize)
       chart._onResize = onResize
       setLoading(false)
