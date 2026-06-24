@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import * as echarts from 'echarts'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { init as initChart, registerMap, use } from 'echarts/core'
+import { EffectScatterChart } from 'echarts/charts'
+import { GeoComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { places, gallery } from '../data/travels'
 
-const CHINA_CENTER = [104.5, 36]
-const CHINA_ZOOM = 4.5
-const MIN_ZOOM = 1     // 缩到最小时世界地图铺满视图
+use([CanvasRenderer, GeoComponent, EffectScatterChart, TooltipComponent])
+
+const WORLD_CENTER = [0, 0]
+const WORLD_BOUNDS = [[-180, 90], [180, -90]]
+const MIN_ZOOM = 1
 const MAX_ZOOM = 12
 const FONT = '"LXGW WenKai Screen", "PingFang SC", "Microsoft YaHei", sans-serif'
 
@@ -32,36 +37,35 @@ const toPoint = (pl) => ({
 export default function MapSection({ onSelectPlace }) {
   const elRef = useRef(null)
   const chartRef = useRef(null)
+  const rafRef = useRef(null)
   const [loading, setLoading] = useState(true)
+
+  const resetWorldView = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    chart.setOption({
+      geo: {
+        center: WORLD_CENTER,
+        zoom: MIN_ZOOM,
+      },
+    })
+  }, [])
 
   useEffect(() => {
     let disposed = false
 
-    async function init() {
+    async function loadMap() {
       const res = await fetch('/maps/world-china-detail.json')
       const geo = await res.json()
       if (disposed) return
       normalizeMap(geo)
-      echarts.registerMap('china-detail', geo)
+      registerMap('china-detail', geo)
 
-      const chart = echarts.init(elRef.current, null, { renderer: 'canvas' })
+      const chart = initChart(elRef.current, null, { renderer: 'canvas' })
       chartRef.current = chart
 
       const withPhoto = places.filter((p) => PHOTO_PLACES.has(p.name)).map(toPoint)
       const withoutPhoto = places.filter((p) => !PHOTO_PLACES.has(p.name)).map(toPoint)
-
-      // 按容器宽高比裁剪地图范围，让“整张图”比例≈屏幕，缩到最小时铺满、留白最小
-      // 经度固定全幅 360°，纬度跨度按容器宽高比推算，上下对称裁剪
-      const computeBounds = () => {
-        const w = elRef.current?.clientWidth || 1
-        const h = elRef.current?.clientHeight || 1
-        const lonSpan = 360
-        let latSpan = (lonSpan * h) / w
-        latSpan = Math.min(latSpan, 150)
-        const latHalf = latSpan / 2
-        const cLat = 18 // 中心纬度略偏北，让陆地更居中
-        return [[-180, Math.min(85, cLat + latHalf)], [180, Math.max(-85, cLat - latHalf)]]
-      }
 
       chart.setOption({
         backgroundColor: 'transparent',
@@ -82,12 +86,11 @@ export default function MapSection({ onSelectPlace }) {
         geo: {
           map: 'china-detail',
           roam: true,
-          center: CHINA_CENTER,
-          zoom: CHINA_ZOOM,
-          // 占满整个容器矩形
+          center: WORLD_CENTER,
+          zoom: MIN_ZOOM,
+          boundingCoords: WORLD_BOUNDS,
           left: 0, right: 0, top: 0, bottom: 0,
-          // 动态裁剪范围，使整张图比例贴合屏幕
-          boundingCoords: computeBounds(),
+          preserveAspect: 'contain',
           scaleLimit: { min: MIN_ZOOM, max: MAX_ZOOM },
           label: { show: false },
           itemStyle: {
@@ -110,23 +113,27 @@ export default function MapSection({ onSelectPlace }) {
         series: [
           {
             name: '足迹',
-            type: 'scatter',
+            type: 'effectScatter',
             coordinateSystem: 'geo',
             zlevel: 2,
             data: withoutPhoto,
             symbol: 'circle',
             symbolSize: 8,
+            showEffectOn: 'emphasis',
+            rippleEffect: { number: 0 },
             itemStyle: { color: '#9aa7b4', borderColor: '#fff', borderWidth: 1.5 },
             emphasis: { scale: 1.5, itemStyle: { color: '#687076' } },
           },
           {
             name: '相册',
-            type: 'scatter',
+            type: 'effectScatter',
             coordinateSystem: 'geo',
             zlevel: 3,
             data: withPhoto,
             symbol: 'circle',
             symbolSize: 9,
+            showEffectOn: 'emphasis',
+            rippleEffect: { number: 0 },
             itemStyle: { color: '#d84d4d', borderColor: '#fff', borderWidth: 1.5 },
             emphasis: { scale: 1.4 },
           },
@@ -142,28 +149,40 @@ export default function MapSection({ onSelectPlace }) {
         if (params.seriesName === '相册') chart.getZr().setCursorStyle('pointer')
       })
       chart.on('mouseout', () => chart.getZr().setCursorStyle('default'))
+      chart.on('georoam', () => {
+        const zoom = chart.getOption()?.geo?.[0]?.zoom
+        if (zoom <= MIN_ZOOM + 0.001) {
+          resetWorldView()
+        }
+      })
 
-      // 窗口变化时：先 resize 画布，再按新宽高比重算地图范围，避免地图形变
       const onResize = () => {
-        chart.resize()
-        chart.setOption({ geo: { boundingCoords: computeBounds() } })
+        if (rafRef.current) window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = window.requestAnimationFrame(() => {
+          rafRef.current = null
+          chart.resize()
+        })
       }
       window.addEventListener('resize', onResize)
       chart._onResize = onResize
       setLoading(false)
     }
 
-    init()
+    loadMap()
 
     return () => {
       disposed = true
+      if (rafRef.current) {
+        window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
       if (chartRef.current) {
         window.removeEventListener('resize', chartRef.current._onResize)
         chartRef.current.dispose()
         chartRef.current = null
       }
     }
-  }, [onSelectPlace])
+  }, [onSelectPlace, resetWorldView])
 
   return (
     <section className="fixed inset-x-0 bottom-0 top-14 bg-[#eef1f3] overflow-hidden">

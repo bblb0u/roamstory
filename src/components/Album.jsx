@@ -2,11 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { gallery } from '../data/travels'
 
 export default function Album({ focus }) {
-  const [viewer, setViewer] = useState(null) // { item, index }
+  const [viewer, setViewer] = useState(null)
   const [highlight, setHighlight] = useState(null)
   const sectionRefs = useRef({})
 
-  // 地图点击联动：滚动到对应地点 + 高亮
   useEffect(() => {
     if (!focus?.place) return
     const el = sectionRefs.current[focus.place]
@@ -36,7 +35,6 @@ export default function Album({ focus }) {
     setViewer((v) => v && ({ ...v, index }))
   }, [])
 
-  // 键盘操作：← → 切换，ESC 关闭
   useEffect(() => {
     if (!viewer) return
     const onKey = (e) => {
@@ -48,13 +46,15 @@ export default function Album({ focus }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [viewer, close, step])
 
-  // 预加载相邻图片
   useEffect(() => {
     if (!viewer) return
     const { item, index } = viewer
     ;[index + 1, index - 1].forEach((i) => {
       const src = item.photos[(i + item.photos.length) % item.photos.length]
-      if (src) { const img = new Image(); img.src = src }
+      if (src) {
+        const img = new Image()
+        img.src = src
+      }
     })
   }, [viewer])
 
